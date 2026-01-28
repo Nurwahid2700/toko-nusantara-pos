@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase'; 
-import { LayoutDashboard, Package, DollarSign, AlertCircle, Plus, Pencil, Trash2, CheckCircle, Clock, History, ShoppingBag, TrendingUp } from 'lucide-react';
+// Import tambahan: QrCode dan X icon
+import { LayoutDashboard, Package, DollarSign, AlertCircle, Plus, Pencil, Trash2, CheckCircle, Clock, History, ShoppingBag, TrendingUp, QrCode, X } from 'lucide-react';
 
 import AddProductModal from '../components/AddProductModal';
 
@@ -12,6 +13,7 @@ export default function Dashboard() {
     
     // State UI
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [showStoreQR, setShowStoreQR] = useState(false); // State baru untuk Popup QR
     const [editingProduct, setEditingProduct] = useState(null);
     const [activeTab, setActiveTab] = useState('queue'); // 'queue' atau 'history'
     
@@ -19,7 +21,7 @@ export default function Dashboard() {
         revenue: 0,
         totalProducts: 0,
         lowStock: 0,
-        soldToday: 0, // NEW: Terjual Hari Ini
+        soldToday: 0, 
         topProducts: []
     });
 
@@ -124,9 +126,19 @@ export default function Dashboard() {
                     <h1 className="text-2xl font-bold text-[#5D4037]">Dashboard & Statistik</h1>
                     <p className="text-[#8D6E63]">Pantau pendapatan dan performa toko secara real-time.</p>
                 </div>
-                <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#8D6E63] hover:bg-[#5D4037] text-white px-5 py-2.5 rounded-xl font-medium shadow-lg transition-all active:scale-95">
-                    <Plus size={20} /> Tambah Produk
-                </button>
+                <div className="flex gap-3">
+                    {/* TOMBOL BARU: LIHAT QR TOKO */}
+                    <button 
+                        onClick={() => setShowStoreQR(true)}
+                        className="flex items-center gap-2 bg-white text-[#5D4037] border border-[#8D6E63]/20 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all active:scale-95"
+                    >
+                        <QrCode size={20} /> QR Toko
+                    </button>
+
+                    <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#8D6E63] hover:bg-[#5D4037] text-white px-5 py-2.5 rounded-xl font-medium shadow-lg transition-all active:scale-95">
+                        <Plus size={20} /> Tambah Produk
+                    </button>
+                </div>
             </header>
 
             {/* Grid Statistik Utama */}
@@ -140,7 +152,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Card 2: Terjual Hari Ini (NEW) */}
+                {/* Card 2: Terjual Hari Ini */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#8D6E63]/10 flex items-center gap-4">
                     <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><ShoppingBag size={24} /></div>
                     <div>
@@ -173,7 +185,7 @@ export default function Dashboard() {
                 {/* KIRI: Tabel Produk & Statistik (Gabungan) */}
                 <div className="lg:col-span-2 space-y-6">
                     
-                    {/* Statistik Produk Paling Laku (Visual Baru) */}
+                    {/* Statistik Produk Paling Laku */}
                     <div className="bg-white rounded-2xl shadow-sm border border-[#8D6E63]/10 p-6">
                         <h3 className="font-bold text-[#5D4037] text-lg flex items-center gap-2 mb-4">
                             <TrendingUp size={20}/> Produk Paling Laku (Top 5)
@@ -311,6 +323,36 @@ export default function Dashboard() {
             </div>
 
             <AddProductModal isOpen={isModalOpen} onClose={() => {setIsModalOpen(false); setEditingProduct(null)}} editData={editingProduct} />
+
+            {/* --- MODAL QR TOKO (Untuk Pelanggan) --- */}
+            {showStoreQR && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center relative animate-in fade-in zoom-in duration-200">
+                        <button onClick={() => setShowStoreQR(false)} className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button>
+                        
+                        <h3 className="text-2xl font-bold text-[#5D4037] mb-2">Scan untuk Pesan</h3>
+                        <p className="text-sm text-gray-500 mb-6">Pelanggan bisa scan ini untuk memesan dari HP mereka (Tanpa Install).</p>
+                        
+                        <div className="bg-white p-4 rounded-xl border-2 border-[#8D6E63] inline-block mb-6 shadow-inner">
+                            {/* QR Code Generatis Otomatis ke Link Vercel Anda */}
+                            {/* Pastikan link ini sesuai dengan domain Anda nanti */}
+                            <img 
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://toko-nusantara-pos.vercel.app/order`} 
+                                alt="QR Toko" 
+                                className="w-48 h-48 mix-blend-multiply" 
+                            />
+                        </div>
+                        
+                        <div className="bg-[#FDFBF7] p-3 rounded-lg border border-[#EFEBE9] text-xs text-gray-500 mb-4 break-all">
+                            https://toko-nusantara-pos.vercel.app/order
+                        </div>
+
+                        <button onClick={() => window.print()} className="w-full py-3 bg-[#8D6E63] hover:bg-[#5D4037] text-white rounded-xl font-bold shadow-lg">
+                            Cetak / Print QR Code
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
