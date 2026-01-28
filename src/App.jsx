@@ -5,14 +5,12 @@ import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import POS from './pages/POS';
-import UserOrder from './pages/UserOrder'; // <--- 1. IMPORT PENTING
+import UserOrder from './pages/UserOrder';
+import Products from './pages/Products'; // <--- IMPORT INI
 
 function ProtectedLayout() {
   const { currentUser } = useAuth();
-
-  if (!currentUser) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!currentUser) return <Navigate to="/login" replace />;
 
   return (
     <div className="flex h-screen bg-[#FDFBF7] overflow-hidden font-sans">
@@ -26,9 +24,7 @@ function ProtectedLayout() {
 
 function PublicRoute({ children }) {
   const { currentUser } = useAuth();
-  if (currentUser) {
-    return <Navigate to="/" replace />;
-  }
+  if (currentUser) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -37,24 +33,16 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Halaman Login (Hanya untuk yang belum login) */}
-          <Route path="/login" element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } />
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
 
-          {/* Halaman Admin (Perlu Login) */}
           <Route element={<ProtectedLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/pos" element={<POS />} />
+            {/* Rute Baru Produk */}
+            <Route path="/products" element={<Products />} /> 
           </Route>
 
-          {/* Halaman Pelanggan (Bebas Akses/Scan QR) */}
-          {/* <--- 2. RUTE PENTING YANG HILANG */}
-          <Route path="/order" element={<UserOrder />} /> 
-
-          {/* Redirect jika halaman tidak ditemukan */}
+          <Route path="/order" element={<UserOrder />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>
