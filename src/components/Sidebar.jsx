@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Package, ChevronDown, ChevronRight, Plus, List, LogOut } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, LogOut } from 'lucide-react'; // Hapus import icon Chevron & Plus
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar() {
     const { logout } = useAuth();
     const location = useLocation();
-    const [isProductMenuOpen, setIsProductMenuOpen] = useState(true); // Default terbuka
 
+    // Helper untuk cek menu aktif
     const isActive = (path) => location.pathname === path;
 
     return (
@@ -35,31 +35,10 @@ export default function Sidebar() {
                     <ShoppingCart size={20} /> Kasir / POS
                 </NavLink>
 
-                {/* Dropdown Menu Produk */}
-                <div className="pt-2">
-                    <button 
-                        onClick={() => setIsProductMenuOpen(!isProductMenuOpen)}
-                        className="w-full flex items-center justify-between px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-xl transition-all font-medium"
-                    >
-                        <div className="flex items-center gap-3">
-                            <Package size={20} /> Produk
-                        </div>
-                        {isProductMenuOpen ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
-                    </button>
-
-                    {/* Submenu */}
-                    {isProductMenuOpen && (
-                        <div className="mt-1 ml-4 border-l-2 border-gray-100 pl-2 space-y-1">
-                            <NavLink to="/products" end className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all ${isActive('/products') ? 'text-[#8D6E63] bg-[#8D6E63]/10 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
-                                <List size={16} /> Inventaris Produk
-                            </NavLink>
-                            {/* Link ini membuka halaman produk dengan parameter otomatis buka modal */}
-                            <NavLink to="/products?action=add" className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-all ${location.search.includes('action=add') ? 'text-[#8D6E63] bg-[#8D6E63]/10 font-bold' : 'text-gray-500 hover:text-gray-700'}`}>
-                                <Plus size={16} /> Tambah Produk
-                            </NavLink>
-                        </div>
-                    )}
-                </div>
+                {/* MENU PRODUK (Disederhanakan) */}
+                <NavLink to="/products" className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${isActive('/products') ? 'bg-[#8D6E63] text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    <Package size={20} /> Daftar Produk
+                </NavLink>
             </nav>
 
             {/* Logout Button */}
