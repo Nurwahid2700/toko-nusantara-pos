@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase'; 
-import { LayoutDashboard, Package, DollarSign, AlertCircle, Plus, Pencil, Trash2, CheckCircle, Clock, History, ShoppingBag, TrendingUp, QrCode, X, Printer, FileText } from 'lucide-react';
+import { LayoutDashboard, Package, DollarSign, AlertCircle, Plus, Pencil, Trash2, CheckCircle, Clock, History, ShoppingBag, TrendingUp, QrCode, X, Printer, FileText, Download } from 'lucide-react';
+import * as XLSX from 'xlsx'; // <--- IMPORT LIBRARY EXCEL
 
 import AddProductModal from '../components/AddProductModal';
 
@@ -32,9 +33,14 @@ export default function Dashboard() {
     useEffect(() => {
         if (products.length || transactions.length) {
             const completedTrans = transactions.filter(t => t.status === 'completed');
+            
+            // Statistik Global
             const revenue = completedTrans.reduce((acc, curr) => acc + (curr.total || 0), 0);
+            
+            // Statistik HARI INI
             const todayStr = new Date().toLocaleDateString('id-ID');
-            const soldTodayCount = completedTrans.filter(t => t.date === todayStr).reduce((acc, t) => acc + (t.items?.reduce((s, i) => s + i.quantity, 0) || 0), 0);
+            const todayTrans = completedTrans.filter(t => t.date === todayStr);
+            const soldTodayCount = todayTrans.reduce((acc, t) => acc + (t.items?.reduce((s, i) => s + i.quantity, 0) || 0), 0);
 
             const salesCount = {};
             completedTrans.forEach(t => t.items?.forEach(i => salesCount[i.name] = (salesCount[i.name] || 0) + i.quantity));
@@ -48,33 +54,47 @@ export default function Dashboard() {
         }
     }, [products, transactions]);
 
+    // --- FITUR EXPORT EXCEL (BARU) ---
+    const handleExportExcel = () => {
+        const todayStr = new Date().toLocaleDateString('id-ID');
+        // Ambil transaksi HARI INI saja (baik yg selesai maupun yg belum, opsional)
+        // Disini kita ambil yg SUDAH SELESAI (Completed) hari ini
+        const dataToExport = transactions
+            .filter(t => t.status === 'completed' && t.date === todayStr)
+            .map(t => ({
+                'No Antrian': t.queueNumber,
+                'Waktu': t.time || '-',
+                'Pelanggan': t.customerName,
+                'Items': t.items.map(i => `${i.name} (x${i.quantity})`).join(', '),
+                'Total (Rp)': t.total,
+                'Metode Bayar': t.paymentMethod === 'qris' ? 'QRIS' : 'Cash',
+                'Catatan': t.note || '-',
+                'Status': 'Selesai'
+            }));
+
+        if (dataToExport.length === 0) {
+            alert("Belum ada transaksi selesai hari ini untuk didownload.");
+            return;
+        }
+
+        // Buat Worksheet
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Laporan Harian");
+
+        // Download File
+        const fileName = `Laporan_Penjualan_${todayStr.replace(/\//g, '-')}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+    };
+
     const handleDelete = async (id) => { if (confirm("Hapus produk?")) await deleteDoc(doc(db, "products", id)); };
     const handleEdit = (product) => { setEditingProduct(product); setIsModalOpen(true); };
     const handleCompleteOrder = async (id) => { if(confirm("Selesai?")) await updateDoc(doc(db, "transactions", id), { status: 'completed' }); };
     
-    // FUNGSI PRINT STRUK DARI RIWAYAT (Manual Build HTML)
     const handlePrintInvoice = (order) => {
         const printWindow = window.open('', '', 'width=400,height=600');
         const itemsHtml = order.items.map(i => `<div style="display:flex; justify-content:space-between;"><span>${i.name} x${i.quantity}</span><span>${new Intl.NumberFormat('id-ID').format(i.price * i.quantity)}</span></div>`).join('');
-        
-        printWindow.document.write(`
-            <html>
-                <head><title>Struk - ${order.queueNumber}</title></head>
-                <body style="font-family: monospace; padding: 20px; text-align: center;">
-                    <h3>Toko Nusantara</h3>
-                    <p>No: ${order.queueNumber} | ${order.customerName}</p>
-                    <hr/>
-                    <div style="text-align: left;">${itemsHtml}</div>
-                    <hr/>
-                    <div style="display: flex; justify-content: space-between; font-weight: bold;">
-                        <span>TOTAL</span><span>Rp ${new Intl.NumberFormat('id-ID').format(order.total)}</span>
-                    </div>
-                    ${order.note ? `<div style="text-align:left; margin-top:10px;"><small><b>Catatan:</b> ${order.note}</small></div>` : ''}
-                    <p style="margin-top: 20px;">Terima Kasih</p>
-                    <script>window.print(); window.close();</script>
-                </body>
-            </html>
-        `);
+        printWindow.document.write(`<html><head><title>Struk</title></head><body style="font-family: monospace; padding: 20px; text-align: center;"><h3>Toko Nusantara</h3><p>No: ${order.queueNumber} | ${order.customerName}</p><hr/><div style="text-align: left;">${itemsHtml}</div><hr/><div style="display: flex; justify-content: space-between; font-weight: bold;"><span>TOTAL</span><span>Rp ${new Intl.NumberFormat('id-ID').format(order.total)}</span></div>${order.note ? `<div style="text-align:left; margin-top:10px;"><small><b>Catatan:</b> ${order.note}</small></div>` : ''}<p style="margin-top: 20px;">Terima Kasih</p><script>window.print(); window.close();</script></body></html>`);
         printWindow.document.close();
     };
 
@@ -89,14 +109,19 @@ export default function Dashboard() {
     const queueList = transactions.filter(t => t.status !== 'completed');
     const historyList = transactions.filter(t => t.status === 'completed');
 
-    // UI Dashbord (Sama seperti sebelumnya, hanya update bagian render list antrian)
     return (
         <div className="p-6 md:p-8 space-y-8 h-full overflow-y-auto w-full bg-[#FAFAFA]">
+            {/* HEADER */}
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                 <div><h1 className="text-2xl font-bold text-[#5D4037]">Dashboard & Dapur</h1><p className="text-[#8D6E63]">Ringkasan performa toko & manajemen pesanan.</p></div>
-                <div className="flex gap-3">
-                    <button onClick={() => setShowStoreQR(true)} className="flex items-center gap-2 bg-white text-[#5D4037] border border-[#8D6E63]/20 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all"><QrCode size={20} /> QR Toko</button>
-                    <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#8D6E63] hover:bg-[#5D4037] text-white px-5 py-2.5 rounded-xl font-medium shadow-lg transition-all"><Plus size={20} /> Tambah Produk</button>
+                <div className="flex flex-wrap gap-3">
+                    {/* TOMBOL EXCEL BARU */}
+                    <button onClick={handleExportExcel} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition-all active:scale-95">
+                        <Download size={20} /> Excel Harian
+                    </button>
+                    
+                    <button onClick={() => setShowStoreQR(true)} className="flex items-center gap-2 bg-white text-[#5D4037] border border-[#8D6E63]/20 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-gray-50 transition-all active:scale-95"><QrCode size={20} /> QR Toko</button>
+                    <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-[#8D6E63] hover:bg-[#5D4037] text-white px-5 py-2.5 rounded-xl font-medium shadow-lg transition-all active:scale-95"><Plus size={20} /> Tambah Produk</button>
                 </div>
             </header>
 
@@ -140,7 +165,6 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Right Column: Queue & History */}
                 <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-[#8D6E63]/10 overflow-hidden flex flex-col h-[700px] sticky top-6">
                     <div className="flex border-b border-gray-100">
                         <button onClick={() => setActiveTab('queue')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 ${activeTab === 'queue' ? 'text-[#5D4037] border-b-2 border-[#5D4037] bg-[#FDFBF7]' : 'text-gray-400'}`}><Clock size={16}/> Antrian ({queueList.length})</button>
@@ -166,13 +190,7 @@ export default function Dashboard() {
                                     {order.items?.map((i, idx) => (<div key={idx} className="flex justify-between"><span>{i.name}</span><span className="font-bold">x{i.quantity}</span></div>))}
                                 </div>
                                 
-                                {/* MENAMPILKAN CATATAN */}
-                                {order.note && (
-                                    <div className="mb-3 p-2 bg-yellow-50 text-yellow-800 text-xs rounded-lg border border-yellow-100 flex items-start gap-1">
-                                        <FileText size={12} className="mt-0.5 flex-shrink-0" />
-                                        <span className="font-medium italic">"{order.note}"</span>
-                                    </div>
-                                )}
+                                {order.note && (<div className="mb-3 p-2 bg-yellow-50 text-yellow-800 text-xs rounded-lg border border-yellow-100 flex items-start gap-1"><FileText size={12} className="mt-0.5 flex-shrink-0" /><span className="font-medium italic">"{order.note}"</span></div>)}
 
                                 <div className="flex gap-2">
                                     {activeTab === 'queue' ? (
