@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase'; 
-import { LayoutDashboard, Package, DollarSign, AlertCircle, Plus, Pencil, Trash2, CheckCircle, Clock, History, ShoppingBag, TrendingUp, QrCode, X } from 'lucide-react';
+import { LayoutDashboard, Package, DollarSign, AlertCircle, Plus, Pencil, Trash2, CheckCircle, Clock, History, ShoppingBag, TrendingUp, QrCode, X, Printer, FileText } from 'lucide-react';
 
 import AddProductModal from '../components/AddProductModal';
 
@@ -52,6 +52,32 @@ export default function Dashboard() {
     const handleEdit = (product) => { setEditingProduct(product); setIsModalOpen(true); };
     const handleCompleteOrder = async (id) => { if(confirm("Selesai?")) await updateDoc(doc(db, "transactions", id), { status: 'completed' }); };
     
+    // FUNGSI PRINT STRUK DARI RIWAYAT (Manual Build HTML)
+    const handlePrintInvoice = (order) => {
+        const printWindow = window.open('', '', 'width=400,height=600');
+        const itemsHtml = order.items.map(i => `<div style="display:flex; justify-content:space-between;"><span>${i.name} x${i.quantity}</span><span>${new Intl.NumberFormat('id-ID').format(i.price * i.quantity)}</span></div>`).join('');
+        
+        printWindow.document.write(`
+            <html>
+                <head><title>Struk - ${order.queueNumber}</title></head>
+                <body style="font-family: monospace; padding: 20px; text-align: center;">
+                    <h3>Toko Nusantara</h3>
+                    <p>No: ${order.queueNumber} | ${order.customerName}</p>
+                    <hr/>
+                    <div style="text-align: left;">${itemsHtml}</div>
+                    <hr/>
+                    <div style="display: flex; justify-content: space-between; font-weight: bold;">
+                        <span>TOTAL</span><span>Rp ${new Intl.NumberFormat('id-ID').format(order.total)}</span>
+                    </div>
+                    ${order.note ? `<div style="text-align:left; margin-top:10px;"><small><b>Catatan:</b> ${order.note}</small></div>` : ''}
+                    <p style="margin-top: 20px;">Terima Kasih</p>
+                    <script>window.print(); window.close();</script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
     const formatCurrency = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
     const getStockStatus = (stock) => {
         if (stock <= 0) return { label: 'Habis', className: 'bg-red-100 text-red-700' };
@@ -63,6 +89,7 @@ export default function Dashboard() {
     const queueList = transactions.filter(t => t.status !== 'completed');
     const historyList = transactions.filter(t => t.status === 'completed');
 
+    // UI Dashbord (Sama seperti sebelumnya, hanya update bagian render list antrian)
     return (
         <div className="p-6 md:p-8 space-y-8 h-full overflow-y-auto w-full bg-[#FAFAFA]">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -73,6 +100,7 @@ export default function Dashboard() {
                 </div>
             </header>
 
+            {/* Statistic Widgets */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#8D6E63]/10"><div className="flex items-center gap-4 mb-2"><div className="p-3 bg-green-50 text-green-600 rounded-xl"><DollarSign size={24} /></div><p className="text-sm text-gray-500 font-medium">Pendapatan</p></div><h3 className="text-2xl font-bold text-[#5D4037]">{formatCurrency(stats.revenue)}</h3></div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-[#8D6E63]/10"><div className="flex items-center gap-4 mb-2"><div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><ShoppingBag size={24} /></div><p className="text-sm text-gray-500 font-medium">Terjual Hari Ini</p></div><h3 className="text-2xl font-bold text-[#5D4037]">{stats.soldToday} Item</h3></div>
@@ -112,6 +140,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
+                {/* Right Column: Queue & History */}
                 <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-[#8D6E63]/10 overflow-hidden flex flex-col h-[700px] sticky top-6">
                     <div className="flex border-b border-gray-100">
                         <button onClick={() => setActiveTab('queue')} className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 ${activeTab === 'queue' ? 'text-[#5D4037] border-b-2 border-[#5D4037] bg-[#FDFBF7]' : 'text-gray-400'}`}><Clock size={16}/> Antrian ({queueList.length})</button>
@@ -122,7 +151,6 @@ export default function Dashboard() {
                             <div key={order.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all">
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
-                                        {/* KODE ANTRIAN DI DASHBOARD */}
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className="bg-[#8D6E63] text-white text-xs font-bold px-2 py-1 rounded-md">{order.queueNumber || 'No-Q'}</span>
                                             <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded uppercase font-bold">{order.paymentMethod === 'qris' ? 'QRIS' : 'Cash'}</span>
@@ -134,8 +162,25 @@ export default function Dashboard() {
                                         <div className="text-[10px] text-gray-400">{order.createdAt?.seconds ? new Date(order.createdAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}</div>
                                     </div>
                                 </div>
-                                <div className="text-xs text-gray-600 mb-3 border-t border-dashed border-gray-100 pt-2 space-y-1">{order.items?.map((i, idx) => (<div key={idx} className="flex justify-between"><span>{i.name}</span><span className="font-bold">x{i.quantity}</span></div>))}</div>
-                                {activeTab === 'queue' && <button onClick={() => handleCompleteOrder(order.id)} className="w-full py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-green-200"><CheckCircle size={14}/> Selesai / Diambil</button>}
+                                <div className="text-xs text-gray-600 mb-3 border-t border-dashed border-gray-100 pt-2 space-y-1">
+                                    {order.items?.map((i, idx) => (<div key={idx} className="flex justify-between"><span>{i.name}</span><span className="font-bold">x{i.quantity}</span></div>))}
+                                </div>
+                                
+                                {/* MENAMPILKAN CATATAN */}
+                                {order.note && (
+                                    <div className="mb-3 p-2 bg-yellow-50 text-yellow-800 text-xs rounded-lg border border-yellow-100 flex items-start gap-1">
+                                        <FileText size={12} className="mt-0.5 flex-shrink-0" />
+                                        <span className="font-medium italic">"{order.note}"</span>
+                                    </div>
+                                )}
+
+                                <div className="flex gap-2">
+                                    {activeTab === 'queue' ? (
+                                        <button onClick={() => handleCompleteOrder(order.id)} className="flex-1 py-2 bg-green-50 text-green-700 hover:bg-green-100 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-green-200"><CheckCircle size={14}/> Selesai</button>
+                                    ) : (
+                                        <button onClick={() => handlePrintInvoice(order)} className="flex-1 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-gray-200"><Printer size={14}/> Invoice</button>
+                                    )}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -143,17 +188,7 @@ export default function Dashboard() {
             </div>
 
             <AddProductModal isOpen={isModalOpen} onClose={() => {setIsModalOpen(false); setEditingProduct(null)}} editData={editingProduct} />
-            {showStoreQR && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center relative">
-                        <button onClick={() => setShowStoreQR(false)} className="absolute top-4 right-4"><X size={20}/></button>
-                        <h3 className="text-2xl font-bold text-[#5D4037] mb-2">Scan untuk Pesan</h3>
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://toko-nusantara-pos.vercel.app/order`} className="w-48 h-48 mix-blend-multiply mx-auto my-4" />
-                        <div className="bg-[#FDFBF7] p-3 rounded-lg border border-[#EFEBE9] text-xs text-gray-500 mb-4 break-all">https://toko-nusantara-pos.vercel.app/order</div>
-                        <button onClick={() => window.print()} className="w-full py-3 bg-[#8D6E63] hover:bg-[#5D4037] text-white rounded-xl font-bold shadow-lg">Cetak / Print QR Code</button>
-                    </div>
-                </div>
-            )}
+            {showStoreQR && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"><div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center relative"><button onClick={() => setShowStoreQR(false)} className="absolute top-4 right-4"><X size={20}/></button><h3 className="text-2xl font-bold text-[#5D4037] mb-2">Scan untuk Pesan</h3><img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://toko-nusantara-pos.vercel.app/order`} className="w-48 h-48 mix-blend-multiply mx-auto my-4" /><div className="bg-[#FDFBF7] p-3 rounded-lg border border-[#EFEBE9] text-xs text-gray-500 mb-4 break-all">https://toko-nusantara-pos.vercel.app/order</div><button onClick={() => window.print()} className="w-full py-3 bg-[#8D6E63] hover:bg-[#5D4037] text-white rounded-xl font-bold shadow-lg">Cetak / Print QR Code</button></div></div>)}
         </div>
     );
 }
