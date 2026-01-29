@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, writeBatch, doc, serverTimestamp, query, orderBy, getDocs, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CreditCard, User, Wallet, QrCode, X, CheckCircle, Ticket, Printer, FileText } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, Wallet, QrCode, X, CheckCircle, Ticket, Printer, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-// Import library print (opsional, tapi kita pakai window.print bawaan browser saja agar ringan)
 
 export default function POS() {
     const [products, setProducts] = useState([]);
@@ -11,14 +10,15 @@ export default function POS() {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
     
-    // State Form Checkout
+    // State Form
     const [customerName, setCustomerName] = useState('');
-    const [note, setNote] = useState(''); // <--- STATE CATATAN
+    const [note, setNote] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('cash');
     
+    // Modals
     const [showQRModal, setShowQRModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
-    const [lastTransaction, setLastTransaction] = useState(null); // Data transaksi terakhir untuk struk
+    const [lastTransaction, setLastTransaction] = useState(null);
 
     const { currentUser } = useAuth();
 
@@ -33,7 +33,10 @@ export default function POS() {
     const addToCart = (product) => { setCart(prev => { const existing = prev.find(item => item.id === product.id); if (existing) { if (existing.quantity + 1 > product.stock) { alert(`Stok sisa ${product.stock}`); return prev; } return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item); } if (product.stock <= 0) { alert("Stok habis"); return prev; } return [...prev, { ...product, quantity: 1 }]; }); };
     const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
     const updateQuantity = (id, delta) => { setCart(prev => prev.map(item => { if (item.id === id) { const product = products.find(p => p.id === id); const newQty = item.quantity + delta; if (newQty > product.stock) { alert("Stok kurang"); return item; } return { ...item, quantity: Math.max(1, newQty) }; } return item; })); };
+    
+    // --- HARGA NORMAL (TIDAK DIKALI 1000 LAGI) ---
     const total = cart.reduce((acc, item) => acc + (parseInt(item.price) * item.quantity), 0);
+    
     const formatCurrency = (val) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 
     const initiateCheckout = () => {
@@ -58,7 +61,7 @@ export default function POS() {
                 }
             }
             return String(nextNum).padStart(3, '0');
-        } catch (error) { return String(Math.floor(Math.random() * 999)); }
+        } catch (error) { return String(Math.floor(Math.random() * 999)).padStart(3, '0'); }
     };
 
     const processTransaction = async () => {
@@ -73,14 +76,15 @@ export default function POS() {
                 items: cart,
                 total,
                 customerName: customerName,
-                note: note, // <--- SIMPAN CATATAN KE DB
+                note: note,
                 paymentMethod: paymentMethod,
                 cashierId: currentUser?.uid || 'guest',
                 status: 'pending', 
                 queueNumber: queueCode,
                 createdAt: serverTimestamp(),
                 date: new Date().toLocaleDateString('id-ID'),
-                time: new Date().toLocaleTimeString('id-ID')
+                time: new Date().toLocaleTimeString('id-ID'),
+                orderType: 'dine_in' // Default Kasir adalah Dine In
             };
 
             const batch = writeBatch(db);
@@ -94,16 +98,13 @@ export default function POS() {
             });
 
             await batch.commit();
-            
-            // Simpan data untuk struk
             setLastTransaction({ ...transactionData, id: newTransactionRef.id });
             
             setCart([]);
             setCustomerName('');
-            setNote(''); // Reset Catatan
+            setNote('');
             setPaymentMethod('cash');
             setShowSuccessModal(true);
-
         } catch (error) {
             console.error("Error:", error);
             alert("Transaksi gagal.");
@@ -111,15 +112,13 @@ export default function POS() {
         setLoading(false);
     };
 
-    // FUNGSI CETAK STRUK
     const handlePrint = () => {
         const printContent = document.getElementById('receipt-print-area').innerHTML;
         const originalContent = document.body.innerHTML;
-        
         document.body.innerHTML = printContent;
         window.print();
         document.body.innerHTML = originalContent;
-        window.location.reload(); // Reload agar state React kembali normal setelah print
+        window.location.reload(); 
     };
 
     const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -137,19 +136,7 @@ export default function POS() {
                 
                 <div className="p-5 bg-white border-t border-gray-100 space-y-4">
                     <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Nama Pelanggan</label><input type="text" placeholder="Masukkan nama..." className="w-full pl-4 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 outline-none" value={customerName} onChange={(e) => setCustomerName(e.target.value)} /></div>
-                    
-                    {/* INPUT CATATAN BARU */}
-                    <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Catatan (Opsional)</label>
-                        <textarea 
-                            placeholder="Contoh: Pedas, Tanpa bawang..." 
-                            className="w-full pl-4 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 outline-none text-sm resize-none" 
-                            rows="2"
-                            value={note} 
-                            onChange={(e) => setNote(e.target.value)} 
-                        />
-                    </div>
-
+                    <div><label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Catatan (Opsional)</label><textarea placeholder="Contoh: Pedas, Tanpa bawang..." className="w-full pl-4 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 outline-none text-sm resize-none" rows="2" value={note} onChange={(e) => setNote(e.target.value)} /></div>
                     <div className="grid grid-cols-2 gap-2"><button onClick={() => setPaymentMethod('cash')} className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold border ${paymentMethod === 'cash' ? 'bg-[#8D6E63] text-white' : 'bg-white'}`}><Wallet size={16} /> Cash</button><button onClick={() => setPaymentMethod('qris')} className={`flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold border ${paymentMethod === 'qris' ? 'bg-[#8D6E63] text-white' : 'bg-white'}`}><QrCode size={16} /> QRIS</button></div>
                     <div className="pt-2 border-t border-dashed border-gray-200"><div className="flex justify-between items-center mb-4"><span className="text-gray-500 font-medium">Total</span><span className="text-xl font-bold text-[#5D4037]">{formatCurrency(total)}</span></div><button onClick={initiateCheckout} disabled={cart.length === 0 || loading} className="w-full py-3.5 bg-[#8D6E63] text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2">{loading ? 'Proses...' : 'Bayar'}</button></div>
                 </div>
@@ -171,15 +158,11 @@ export default function POS() {
                         </div>
 
                         <div className="flex gap-2">
-                            <button onClick={handlePrint} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-bold flex items-center justify-center gap-2">
-                                <Printer size={18} /> Cetak Struk
-                            </button>
-                            <button onClick={() => setShowSuccessModal(false)} className="flex-1 py-3 bg-[#8D6E63] text-white rounded-xl font-bold shadow-lg">
-                                Transaksi Baru
-                            </button>
+                            <button onClick={handlePrint} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-bold flex items-center justify-center gap-2"><Printer size={18} /> Cetak Struk</button>
+                            <button onClick={() => setShowSuccessModal(false)} className="flex-1 py-3 bg-[#8D6E63] text-white rounded-xl font-bold shadow-lg">Transaksi Baru</button>
                         </div>
-
-                        {/* TEMPLATE STRUK (HIDDEN DARI LAYAR TAPI MUNCUL SAAT PRINT) */}
+                        
+                        {/* INVOICE HIDDEN */}
                         <div id="receipt-print-area" className="hidden">
                             <div style={{ padding: '20px', fontFamily: 'monospace', textAlign: 'center', width: '300px', margin: '0 auto' }}>
                                 <h2 style={{ marginBottom: '5px' }}>Toko Nusantara</h2>
@@ -204,12 +187,7 @@ export default function POS() {
                                     <span>TOTAL</span>
                                     <span>{formatCurrency(lastTransaction.total)}</span>
                                 </div>
-                                {lastTransaction.note && (
-                                    <div style={{ textAlign: 'left', fontSize: '12px', marginTop: '10px' }}>
-                                        <p style={{ fontWeight: 'bold', margin: 0 }}>Catatan:</p>
-                                        <p style={{ margin: 0 }}>{lastTransaction.note}</p>
-                                    </div>
-                                )}
+                                {lastTransaction.note && (<div style={{ textAlign: 'left', fontSize: '12px', marginTop: '10px' }}><p style={{ fontWeight: 'bold', margin: 0 }}>Catatan:</p><p style={{ margin: 0 }}>{lastTransaction.note}</p></div>)}
                                 <p style={{ fontSize: '12px', marginTop: '20px' }}>Terima Kasih atas Kunjungan Anda!</p>
                             </div>
                         </div>
