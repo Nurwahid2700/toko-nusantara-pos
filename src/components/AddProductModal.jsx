@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
-import { X, Save } from 'lucide-react';
+import { X, Save, UploadCloud, Loader2 } from 'lucide-react'; // Tambahkan icon yang kurang
 
 export default function AddProductModal({ isOpen, onClose, editData }) {
   const [loading, setLoading] = useState(false);
+  
   // Default data form
   const initialForm = {
     name: '',
@@ -27,7 +28,7 @@ export default function AddProductModal({ isOpen, onClose, editData }) {
   if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Mencegah reload halaman
+    e.preventDefault(); 
     
     // Validasi sederhana
     if (!formData.name || !formData.price || !formData.stock) {
@@ -38,32 +39,31 @@ export default function AddProductModal({ isOpen, onClose, editData }) {
     setLoading(true);
 
     try {
+      // Pastikan harga dan stok disimpan sebagai ANGKA (Integer)
+      const dataToSave = {
+        name: formData.name,
+        category: formData.category,
+        price: parseInt(formData.price), // Pastikan angka murni
+        stock: parseInt(formData.stock),
+        image: formData.image || "https://placehold.co/400"
+      };
+
       if (editData) {
         // --- MODE EDIT ---
         const productRef = doc(db, "products", editData.id);
-        await updateDoc(productRef, {
-          name: formData.name,
-          category: formData.category,
-          price: Number(formData.price),
-          stock: Number(formData.stock),
-          image: formData.image || "https://placehold.co/400"
-        });
-        alert("✅ Produk berhasil diperbarui!");
+        await updateDoc(productRef, dataToSave);
+        // alert("✅ Produk berhasil diperbarui!"); // Opsional, bisa dihapus agar cepat
       } else {
         // --- MODE TAMBAH BARU ---
         await addDoc(collection(db, "products"), {
-          name: formData.name,
-          category: formData.category,
-          price: Number(formData.price),
-          stock: Number(formData.stock),
-          image: formData.image || "https://placehold.co/400",
+          ...dataToSave,
           createdAt: new Date()
         });
-        alert("✅ Produk berhasil disimpan!");
+        // alert("✅ Produk berhasil disimpan!"); // Opsional
       }
       
-      onClose(); // Tutup modal setelah sukses
-      setFormData(initialForm); // Reset form
+      onClose(); 
+      setFormData(initialForm); 
 
     } catch (error) {
       console.error("Error saving product:", error);
@@ -100,24 +100,27 @@ export default function AddProductModal({ isOpen, onClose, editData }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Kategori</label>
-              <select 
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none"
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-              >
-                <option>Makanan</option>
-                <option>Minuman</option>
-                <option>Camilan</option>
-                <option>Lainnya</option>
-              </select>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Harga (Rupiah)</label>
+              <div className="relative">
+                {/* Tambahan UI: Prefix Rp */}
+                <span className="absolute left-3 top-3 text-gray-400 font-bold text-sm">Rp</span>
+                <input 
+                  type="number" 
+                  required
+                  placeholder="15000"
+                  className="w-full pl-10 pr-3 py-3 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-[#8D6E63]"
+                  value={formData.price}
+                  onChange={(e) => setFormData({...formData, price: e.target.value})}
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Stok Awal</label>
               <input 
                 type="number" 
                 required
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none"
+                placeholder="50"
+                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-[#8D6E63]"
                 value={formData.stock}
                 onChange={(e) => setFormData({...formData, stock: e.target.value})}
               />
@@ -125,25 +128,38 @@ export default function AddProductModal({ isOpen, onClose, editData }) {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Harga (Rp)</label>
-            <input 
-              type="number" 
-              required
-              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none"
-              value={formData.price}
-              onChange={(e) => setFormData({...formData, price: e.target.value})}
-            />
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Kategori</label>
+            <select 
+              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none focus:border-[#8D6E63]"
+              value={formData.category}
+              onChange={(e) => setFormData({...formData, category: e.target.value})}
+            >
+              <option>Makanan</option>
+              <option>Minuman</option>
+              <option>Camilan</option>
+              <option>Lainnya</option>
+            </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Link Gambar (Opsional)</label>
-            <input 
-              type="text" 
-              placeholder="https://..."
-              className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none text-sm"
-              value={formData.image}
-              onChange={(e) => setFormData({...formData, image: e.target.value})}
-            />
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Link Gambar (URL)</label>
+            <div className="flex gap-2">
+                <input 
+                type="text" 
+                placeholder="https://..."
+                className="flex-1 p-3 rounded-xl bg-gray-50 border border-gray-200 outline-none text-sm focus:border-[#8D6E63]"
+                value={formData.image}
+                onChange={(e) => setFormData({...formData, image: e.target.value})}
+                />
+                {/* Tambahan UI: Kotak Preview Gambar */}
+                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden border border-gray-200 shrink-0">
+                    {formData.image ? (
+                        <img src={formData.image} alt="Preview" className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'} />
+                    ) : (
+                        <UploadCloud size={20} className="text-gray-400"/>
+                    )}
+                </div>
+            </div>
           </div>
 
           <button 
@@ -151,7 +167,7 @@ export default function AddProductModal({ isOpen, onClose, editData }) {
             disabled={loading}
             className="w-full py-3 bg-[#8D6E63] hover:bg-[#5D4037] text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50 mt-4 flex justify-center items-center gap-2"
           >
-            {loading ? 'Menyimpan...' : (
+            {loading ? <Loader2 className="animate-spin" /> : (
               <>
                 <Save size={18} />
                 {editData ? 'Simpan Perubahan' : 'Simpan Produk'}
