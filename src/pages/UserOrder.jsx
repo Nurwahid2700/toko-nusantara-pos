@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy, getDocs, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { ShoppingBag, Search, Minus, Plus, X, ChefHat, Ticket, Info, Bike, Store, MapPin } from 'lucide-react';
+// PERBAIKAN: Menambahkan ArrowRight ke dalam import
+import { ShoppingBag, Search, Minus, Plus, X, ChefHat, Ticket, Info, Bike, Store, MapPin, ArrowRight } from 'lucide-react';
 
 export default function UserOrder() {
     const [products, setProducts] = useState([]);
@@ -14,7 +15,7 @@ export default function UserOrder() {
     const [customerName, setCustomerName] = useState('');
     const [note, setNote] = useState('');
     
-    // FITUR DELIVERY (Dikembalikan)
+    // State Delivery
     const [orderType, setOrderType] = useState('dine_in'); // 'dine_in' atau 'delivery'
     const [address, setAddress] = useState('');
     
@@ -32,10 +33,25 @@ export default function UserOrder() {
         return () => unsubscribe();
     }, []);
 
-    const addToCart = (product) => { setCart(prev => { const existing = prev.find(item => item.id === product.id); if (existing) { if (existing.quantity + 1 > product.stock) return prev; return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item); } return [...prev, { ...product, quantity: 1 }]; }); };
-    const updateQty = (id, delta) => { setCart(prev => prev.map(item => { if (item.id === id) return { ...item, quantity: Math.max(0, item.quantity + delta) }; return item; }).filter(item => item.quantity > 0)); };
+    const addToCart = (product) => { 
+        setCart(prev => { 
+            const existing = prev.find(item => item.id === product.id); 
+            if (existing) { 
+                if (existing.quantity + 1 > product.stock) return prev; 
+                return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item); 
+            } 
+            return [...prev, { ...product, quantity: 1 }]; 
+        }); 
+    };
+
+    const updateQty = (id, delta) => { 
+        setCart(prev => prev.map(item => { 
+            if (item.id === id) return { ...item, quantity: Math.max(0, item.quantity + delta) }; 
+            return item; 
+        }).filter(item => item.quantity > 0)); 
+    };
     
-    // --- PERBAIKAN HARGA FINAL (TIDAK ADA * 1000) ---
+    // --- HARGA MURNI (TANPA PENGALI) ---
     const subtotal = cart.reduce((acc, item) => acc + (parseInt(item.price) * item.quantity), 0);
     const shippingCost = orderType === 'delivery' ? DELIVERY_FEE : 0;
     const total = subtotal + shippingCost;
@@ -124,24 +140,49 @@ export default function UserOrder() {
         <div className="min-h-screen bg-[#FAFAFA] pb-24 max-w-md mx-auto shadow-2xl overflow-hidden relative">
             <header className="bg-white p-4 sticky top-0 z-10 shadow-sm"><div className="flex justify-between items-center mb-4"><div className="flex items-center gap-2"><div className="w-8 h-8 bg-[#8D6E63] rounded-lg flex items-center justify-center text-white font-bold text-xs">TN</div><h1 className="font-bold text-[#5D4037]">Toko Nusantara</h1></div>{totalItems > 0 && (<button onClick={() => setIsCartOpen(true)} className="relative p-2 text-[#8D6E63]"><ShoppingBag /><span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold">{totalItems}</span></button>)}</div><div className="space-y-3"><div className="relative"><Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" /><input type="text" placeholder="Cari menu favorit..." className="w-full pl-9 pr-4 py-2 bg-gray-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#8D6E63]/20" value={search} onChange={e => setSearch(e.target.value)} /></div><div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">{categories.map(cat => (<button key={cat} onClick={() => setCategory(cat)} className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${category === cat ? 'bg-[#5D4037] text-white' : 'bg-white border border-gray-200 text-gray-500'}`}>{cat}</button>))}</div></div></header>
             
-            {/* LIST PRODUK (MURNI TANPA * 1000) */}
             <div className="p-4 grid grid-cols-2 gap-4">{filteredProducts.map(product => (<div key={product.id} className="bg-white p-3 rounded-2xl shadow-sm border border-transparent hover:border-[#8D6E63]/20 transition-all flex flex-col"><div className="aspect-square bg-[#FDFBF7] rounded-xl mb-3 overflow-hidden relative"><img src={product.image} className="w-full h-full object-cover" onError={(e) => e.target.src='https://placehold.co/200'} /></div><h3 className="font-bold text-gray-800 text-sm truncate mb-1">{product.name}</h3><div className="mt-auto flex justify-between items-center"><span className="text-[#8D6E63] font-bold text-sm">{formatCurrency(product.price)}</span><button onClick={() => addToCart(product)} className="w-7 h-7 bg-[#FDFBF7] text-[#5D4037] rounded-full flex items-center justify-center hover:bg-[#8D6E63] hover:text-white transition-colors"><Plus size={16} /></button></div></div>))}</div>
             
-            {/* Floating Action Button (Cart) */}
-            {totalItems > 0 && !isCartOpen && (<div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto"><button onClick={() => setIsCartOpen(true)} className="w-full bg-[#5D4037] text-white p-4 rounded-2xl shadow-xl flex justify-between items-center animate-in slide-in-from-bottom duration-300"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold">{totalItems}</div><span className="font-medium text-sm">item di keranjang</span></div><div className="flex items-center gap-2 font-bold">{formatCurrency(total)} <ArrowRight size={18} /></div></button></div>)}
+            {/* Tombol Melayang Keranjang (FAB) */}
+            {totalItems > 0 && !isCartOpen && (
+                <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto">
+                    <button onClick={() => setIsCartOpen(true)} className="w-full bg-[#5D4037] text-white p-4 rounded-2xl shadow-xl flex justify-between items-center animate-in slide-in-from-bottom duration-300">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center font-bold">{totalItems}</div>
+                            <span className="font-medium text-sm">item di keranjang</span>
+                        </div>
+                        {/* Di sini ArrowRight sebelumnya menyebabkan crash karena belum diimport */}
+                        <div className="flex items-center gap-2 font-bold">{formatCurrency(total)} <ArrowRight size={18} /></div>
+                    </button>
+                </div>
+            )}
             
             {/* Modal Keranjang */}
             {isCartOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm">
                     <div className="bg-white w-full max-w-md h-[90vh] sm:h-auto sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300">
-                        <div className="p-5 border-b border-gray-100 flex justify-between items-center"><h2 className="font-bold text-lg text-[#5D4037]">Pesanan Kamu</h2><button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button></div>
+                        <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+                            <h2 className="font-bold text-lg text-[#5D4037]">Pesanan Kamu</h2>
+                            <button onClick={() => setIsCartOpen(false)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20}/></button>
+                        </div>
                         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                            {/* ITEM LIST (MURNI TANPA * 1000) */}
-                            {cart.map(item => (<div key={item.id} className="flex gap-4 items-center"><img src={item.image} className="w-14 h-14 rounded-lg object-cover bg-gray-50" onError={(e)=>e.target.src='https://placehold.co/100'}/><div className="flex-1"><h4 className="font-bold text-sm text-gray-800">{item.name}</h4><p className="text-[#8D6E63] text-xs font-bold">{formatCurrency(item.price)}</p></div><div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1"><button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-gray-600"><Minus size={14}/></button><span className="text-xs font-bold w-4 text-center">{item.quantity}</span><button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center bg-[#8D6E63] text-white rounded shadow-sm"><Plus size={14}/></button></div></div>))}
+                            {cart.map(item => (
+                                <div key={item.id} className="flex gap-4 items-center">
+                                    <img src={item.image} className="w-14 h-14 rounded-lg object-cover bg-gray-50" onError={(e)=>e.target.src='https://placehold.co/100'}/>
+                                    <div className="flex-1">
+                                        <h4 className="font-bold text-sm text-gray-800">{item.name}</h4>
+                                        <p className="text-[#8D6E63] text-xs font-bold">{formatCurrency(item.price)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-1">
+                                        <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-gray-600"><Minus size={14}/></button>
+                                        <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                                        <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 flex items-center justify-center bg-[#8D6E63] text-white rounded shadow-sm"><Plus size={14}/></button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                         <div className="p-6 bg-[#FDFBF7] border-t border-gray-100 rounded-b-3xl space-y-4">
                             
-                            {/* PILIHAN DELIVERY / AMBIL (LOGIC YANG SEMPAT HILANG) */}
+                            {/* PILIHAN DELIVERY / AMBIL */}
                             <div className="grid grid-cols-2 gap-2 bg-gray-200 p-1 rounded-xl">
                                 <button type="button" onClick={() => setOrderType('dine_in')} className={`py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${orderType === 'dine_in' ? 'bg-white text-[#5D4037] shadow-sm' : 'text-gray-500'}`}><Store size={14}/> Ambil Sendiri</button>
                                 <button type="button" onClick={() => setOrderType('delivery')} className={`py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${orderType === 'delivery' ? 'bg-white text-[#5D4037] shadow-sm' : 'text-gray-500'}`}><Bike size={14}/> Delivery</button>
@@ -150,7 +191,6 @@ export default function UserOrder() {
                             <form onSubmit={handleSubmitOrder} className="space-y-4">
                                 <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Nama Pemesan</label><input required type="text" placeholder="Contoh: Budi" className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-[#8D6E63]" value={customerName} onChange={e => setCustomerName(e.target.value)} /></div>
                                 
-                                {/* INPUT ALAMAT (MUNCUL JIKA DELIVERY) */}
                                 {orderType === 'delivery' && (
                                     <div className="animate-in slide-in-from-top duration-300">
                                         <label className="block text-xs font-bold text-gray-400 uppercase mb-1 flex items-center gap-1"><MapPin size={12}/> Alamat Pengiriman</label>
